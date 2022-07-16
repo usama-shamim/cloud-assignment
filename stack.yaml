@@ -103,7 +103,47 @@ Resources:
               - Effect: 'Allow'
                 Action: 'lambda:*'
                 Resource: !GetAtt LambdaFunction.Arn
-
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: 'Allow'
+                Action: 'dynamodb:*'
+                Resource: !GetAtt myDynamoDBTable.Arn
+  myDynamoDBTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - 
+          AttributeName: "IP-Adress"
+          AttributeType: "S"
+        -
+          AttributeName: "Epoch"
+          AttributeType: "S"
+        -
+          AttributeName: "HTTPCode"
+          AttributeType: "S"
+      KeySchema:
+        - 
+          AttributeName: "IP-Adress"
+          KeyType: "HASH"
+        -
+          AttributeName: "Epoch"
+          KeyType: "RANGE"
+      GlobalSecondaryIndexes:
+        - IndexName: "GlobalSecIndex"
+          KeySchema:
+            - AttributeName: "HTTPCode"
+              KeyType: "HASH"
+          Projection:
+            ProjectionType: "KEYS_ONLY"
+          ProvisionedThroughput:
+            ReadCapacityUnits: "5"
+            WriteCapacityUnits: "5"
+      ProvisionedThroughput: 
+        ReadCapacityUnits: "5"
+        WriteCapacityUnits: "5"
+      TableName: "requeststable"  
   LambdaFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -113,13 +153,15 @@ Resources:
           import json
           import boto3
           s3client = boto3.client('s3')
+          dynamodb = boto3.client('dynamodb')
           def handler(event, context):
             bucketName = event['queryStringParameters'].get('bucket_name')
             objName = event['queryStringParameters'].get('object_key')
-            IP = event['headers'].get('X-Forwarded-For')
-            epochtime = event['requestContext'].get('requestTimeEpoch')
+            IP = str(event['headers'].get('X-Forwarded-For'))
+            epochtime = str(event['requestContext'].get('requestTimeEpoch'))  
             headAction = s3client.head_object(Bucket= bucketName ,Key= objName)
-            status = headAction['ResponseMetadata'].get('HTTPStatusCode')
+            status = str(headAction['ResponseMetadata'].get('HTTPStatusCode'))
+            dynamodbput = dynamodb.put_item(TableName='requeststable' , Item = {'IP-Adress':{'S':IP},'Epoch':{'S':epochtime},'HTTPCode':{'S':status}})
             response = {
               'isBase64Encoded': False,
               'statusCode': 200,
@@ -150,16 +192,29 @@ Resources:
               - 'sts:AssumeRole'
       Path: '/'
       Policies:
-         - PolicyName: S3Access
-           PolicyDocument:
-              Version: '2012-10-17'
-              Statement:
-                 - Effect: 'Allow'
-                   Action: 's3:*'
-                   Resource: '*'
+        - PolicyName: S3ReadAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: 'Allow'
+                Action: [
+                  's3:Get*',
+                  's3:List*',
+                  's3-object-lambda:Get*',
+                  's3-object-lambda:List*' ]
+                Resource: '*'
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: 'Allow'
+                Action: 'dynamodb:*'
+                Resource: '*'
 Outputs:
-  apiGatewayInvokeURL:
+  PostapiGatewayInvokeURL:
     Value: !Sub https://${ApiGatewayRestApi}.execute-api.${AWS::Region}.amazonaws.com/${ApiGatewayStage}/lambda/?bucket_name=BUCKETNAME&object_key=OBJECTKEY
 
   lambdaArn:
     Value: !GetAtt LambdaFunction.Arn
+  DynamoDbARN:
+    Value: !GetAtt myDynamoDBTable.Arn
