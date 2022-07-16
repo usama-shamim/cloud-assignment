@@ -35,6 +35,17 @@ This transaction is recorded in AWS Dynamo DB as well. Specifically, where the r
 
    ![image](https://user-images.githubusercontent.com/54571862/179373553-22928f66-2098-42a8-be96-12862fcf3e04.png)
 
+>**Pending Tasks**
+
+**1.** Error / Exception Handling
+
+**2.** Nested SAM Template
+
+**3.** Few Wildcard IAM roles needs to be changed to specific roles
+
+**Please feel free to reach out to me in case of any improvements / suggestions.**
+
+
 
 
     
